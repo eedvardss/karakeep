@@ -245,12 +245,14 @@ export default function PDFHighlighter({
     return true;
   }
 
-  function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
+  // A native tap may focus the tabpanel after pointerup. Open the editor on
+  // click so that the same gesture cannot dismiss its newly mounted form.
+  function handleClick(event: React.MouseEvent<HTMLDivElement>) {
     if (
       readOnly ||
       isSaving ||
-      (!isMobile && captureSelection({ x: event.clientX, y: event.clientY })) ||
-      (isMobile && !window.getSelection()?.isCollapsed)
+      !window.getSelection()?.isCollapsed ||
+      (event.target as HTMLElement).closest("button[data-pdf-highlight-id]")
     )
       return;
     const page = (event.target as HTMLElement).closest<HTMLElement>(
@@ -380,7 +382,12 @@ export default function PDFHighlighter({
             event.pointerType === "touch" || event.pointerType === "pen",
           )
         }
-        onPointerUp={handlePointerUp}
+        onPointerUp={(event) => {
+          if (!isMobile) {
+            captureSelection({ x: event.clientX, y: event.clientY });
+          }
+        }}
+        onClick={handleClick}
         onKeyUp={(event) => {
           if (event.key === "Shift") captureSelection();
         }}

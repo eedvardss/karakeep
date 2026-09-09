@@ -16,6 +16,7 @@ import PDFHighlighter from "@karakeep/shared-react/components/pdf/PDFHighlighter
 import type {
   LoadPdfDocument,
   NewPdfHighlight,
+  PdfHighlight,
   PdfLibrary,
 } from "@karakeep/shared-react/components/pdf/types";
 
@@ -115,25 +116,42 @@ afterEach(() => {
   coarse = true;
 });
 
-async function mount(readOnly = false) {
+async function mount(readOnly = false, highlights: PdfHighlight[] = []) {
   const onCreate = vi.fn(async (_highlight: NewPdfHighlight) => undefined);
+  const onUpdate = vi.fn(async () => undefined);
   const view = render(
-    <PDFHighlighter
-      assetId="asset"
-      highlights={[]}
-      readOnly={readOnly}
-      loadDocument={loader}
-      originalUrl="/asset.pdf"
-      onCreate={onCreate}
-      onUpdate={async () => undefined}
-      onDelete={async () => undefined}
-    />,
+    <>
+      <button>Source</button>
+      <div role="tabpanel" tabIndex={0}>
+        <PDFHighlighter
+          assetId="asset"
+          highlights={highlights}
+          readOnly={readOnly}
+          loadDocument={loader}
+          originalUrl="/asset.pdf"
+          onCreate={onCreate}
+          onUpdate={onUpdate}
+          onDelete={async () => undefined}
+        />
+      </div>
+    </>,
   );
   await waitFor(() =>
     expect(view.container.querySelectorAll("[data-pdf-page]")).toHaveLength(2),
   );
-  return { ...view, onCreate };
+  return { ...view, onCreate, onUpdate };
 }
+
+const savedHighlight: PdfHighlight = {
+  id: "saved",
+  text: "Amber foxes",
+  color: "blue",
+  note: "Saved note",
+  pdfAnchor: {
+    assetId: "asset",
+    rects: [{ pageNumber: 1, left: 0.05, top: 0.04, width: 0.4, height: 0.04 }],
+  },
+};
 
 function select(start: number, end: number, lastPage = 1) {
   const first = document.querySelector('[data-pdf-page="1"] span')!.firstChild!;
@@ -148,6 +166,73 @@ function select(start: number, end: number, lastPage = 1) {
   selection.addRange(range);
   fireEvent(document, new Event("selectionchange"));
 }
+
+it("keeps the existing editor open through the first touch's focus change after Source", async () => {
+  const { onCreate, onUpdate } = await mount(false, [savedHighlight]);
+  const source = screen.getByRole("button", { name: "Source" });
+  const panel = screen.getByRole("tabpanel");
+  const text = document.querySelector('[data-pdf-page="1"] span')!;
+  const point = { pointerType: "touch", clientX: 100, clientY: 130 };
+  await act(async () => source.focus());
+  fireEvent.pointerDown(text, point);
+  fireEvent.pointerUp(text, point);
+  // Android Chrome focuses the tabpanel between pointerup and its click.
+  // Opening earlier lets that same gesture dismiss the newly mounted form.
+  await act(async () => panel.focus());
+  fireEvent.click(text, point);
+  const note = (await screen.findByRole("textbox", {
+    name: "Highlight note",
+  })) as HTMLTextAreaElement;
+  expect(note.value).toBe("Saved note");
+  fireEvent.change(note, { target: { value: "Updated after Source" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(onUpdate).toHaveBeenCalledExactlyOnceWith(
+      "saved",
+      "blue",
+      "Updated after Source",
+    ),
+  );
+  expect(onCreate).not.toHaveBeenCalled();
+
+  await waitFor(() =>
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull(),
+  );
+  fireEvent.click(text, point);
+  await screen.findByRole("textbox", { name: "Highlight note" });
+  await act(async () => source.focus());
+  await waitFor(() =>
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull(),
+  );
+});
+
+it.each(["touch", "mouse"])(
+  "does not turn a %s text selection over a saved highlight into editing it",
+  async (pointerType) => {
+    coarse = pointerType === "touch";
+    const { onCreate, onUpdate } = await mount(false, [savedHighlight]);
+    const text = document.querySelector('[data-pdf-page="1"] span')!;
+    const point = { pointerType, clientX: 100, clientY: 130 };
+    fireEvent.pointerDown(text, point);
+    select(0, 11);
+    fireEvent.pointerUp(text, point);
+    fireEvent.click(text, point);
+    if (pointerType === "touch") {
+      expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Highlight selection" }),
+      );
+    }
+    const note = (await screen.findByRole("textbox", {
+      name: "Highlight note",
+    })) as HTMLTextAreaElement;
+    expect(note.value).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onCreate).toHaveBeenCalledOnce());
+    expect(onCreate.mock.calls[0][0].text).toBe("Amber foxes");
+    expect(onUpdate).not.toHaveBeenCalled();
+  },
+);
 
 it("waits for the touch action and captures the final adjusted cross-page range", async () => {
   const { onCreate } = await mount();

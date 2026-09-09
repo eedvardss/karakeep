@@ -49,7 +49,7 @@ export default function PDFHighlighterDom({
   return (
     <div
       className="bg-background text-foreground"
-      style={{ height: "100dvh", overflow: "hidden" }}
+      style={{ width: "100%", height: "100dvh", overflow: "hidden" }}
     >
       <PDFHighlighter
         key={assetId}
