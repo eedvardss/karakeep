@@ -1,11 +1,52 @@
 import { beforeEach, describe, expect, test } from "vitest";
 
+import { assets, AssetTypes } from "@karakeep/db/schema";
 import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
 
 import type { CustomTestContext } from "../testUtils";
-import { defaultBeforeEach } from "../testUtils";
+import { defaultBeforeEach, getApiCaller } from "../testUtils";
 
 beforeEach<CustomTestContext>(defaultBeforeEach(true));
+
+const pdfAnchor = {
+  assetId: "highlight-pdf",
+  rects: [
+    { pageNumber: 1, left: 0.1, top: 0.2, width: 0.3, height: 0.04 },
+    { pageNumber: 1, left: 0.1, top: 0.25, width: 0.2, height: 0.04 },
+    { pageNumber: 2, left: 0.15, top: 0.1, width: 0.4, height: 0.03 },
+  ],
+};
+
+async function createPdfBookmark(
+  { apiCallers, db }: Pick<CustomTestContext, "apiCallers" | "db">,
+  type: "asset" | "link" = "asset",
+) {
+  const caller = apiCallers[0];
+  const user = await caller.users.whoami();
+  await db.insert(assets).values({
+    id: pdfAnchor.assetId,
+    assetType: AssetTypes.USER_UPLOADED,
+    contentType: "application/pdf",
+    userId: user.id,
+  });
+  if (type === "asset") {
+    return caller.bookmarks.createBookmark({
+      type: BookmarkTypes.ASSET,
+      assetType: "pdf",
+      assetId: pdfAnchor.assetId,
+      fileName: "highlight-fixture.pdf",
+    });
+  }
+  const bookmark = await caller.bookmarks.createBookmark({
+    type: BookmarkTypes.LINK,
+    url: "https://example.com/highlight-fixture.pdf",
+  });
+  await caller.assets.attachAsset({
+    bookmarkId: bookmark.id,
+    asset: { id: pdfAnchor.assetId, assetType: "pdf" },
+  });
+  return bookmark;
+}
 
 describe("Highlight Routes", () => {
   test<CustomTestContext>("create highlight", async ({ apiCallers }) => {
@@ -35,6 +76,127 @@ describe("Highlight Routes", () => {
     expect(res.color).toEqual("yellow");
     expect(res.text).toEqual("Test highlight text");
     expect(res.note).toEqual("Test note");
+    expect(res.pdfAnchor).toBeNull();
+  });
+
+  test<CustomTestContext>("persists PDF rectangles through create and fresh API reads", async ({
+    apiCallers,
+    db,
+  }) => {
+    const bookmark = await createPdfBookmark({ apiCallers, db });
+    const created = await apiCallers[0].highlights.create({
+      bookmarkId: bookmark.id,
+      startOffset: 0,
+      endOffset: 24,
+      color: "yellow",
+      text: "Text spanning PDF pages",
+      note: "Original note",
+      pdfAnchor,
+    });
+    expect(created.pdfAnchor).toEqual(pdfAnchor);
+
+    // A new caller reads the migrated SQLite row, rather than a client-side cached highlight.
+    const user = await apiCallers[0].users.whoami();
+    const reloaded = getApiCaller(
+      db,
+      user.id,
+      user.email ?? undefined,
+    ).highlights;
+    expect((await reloaded.get({ highlightId: created.id })).pdfAnchor).toEqual(
+      pdfAnchor,
+    );
+    const forBookmark = await reloaded.getForBookmark({
+      bookmarkId: bookmark.id,
+    });
+    expect(forBookmark.highlights).toContainEqual(created);
+    expect((await reloaded.getAll({})).highlights).toContainEqual(created);
+    expect(
+      (await reloaded.search({ text: "spanning" })).highlights,
+    ).toContainEqual(created);
+  });
+
+  test<CustomTestContext>("preserves PDF anchors when editing color and notes, then deletes normally", async ({
+    apiCallers,
+    db,
+  }) => {
+    const bookmark = await createPdfBookmark({ apiCallers, db });
+    const api = apiCallers[0].highlights;
+    const created = await api.create({
+      bookmarkId: bookmark.id,
+      startOffset: 0,
+      endOffset: 8,
+      text: "PDF text",
+      note: null,
+      pdfAnchor,
+    });
+    expect(
+      await api.update({ highlightId: created.id, color: "blue" }),
+    ).toMatchObject({
+      color: "blue",
+      note: null,
+      pdfAnchor,
+    });
+    await api.update({ highlightId: created.id, note: "Updated note" });
+    expect(await api.get({ highlightId: created.id })).toMatchObject({
+      color: "blue",
+      note: "Updated note",
+      pdfAnchor,
+    });
+    await api.update({ highlightId: created.id, note: null });
+    expect(await api.get({ highlightId: created.id })).toMatchObject({
+      color: "blue",
+      note: null,
+      pdfAnchor,
+    });
+    expect((await api.delete({ highlightId: created.id })).pdfAnchor).toEqual(
+      pdfAnchor,
+    );
+    await expect(api.get({ highlightId: created.id })).rejects.toThrow(
+      /Highlight not found/,
+    );
+    expect(
+      (await api.getForBookmark({ bookmarkId: bookmark.id })).highlights,
+    ).toEqual([]);
+  });
+
+  test<CustomTestContext>("supports a PDF attached to a bookmarked link", async ({
+    apiCallers,
+    db,
+  }) => {
+    const bookmark = await createPdfBookmark({ apiCallers, db }, "link");
+    const api = apiCallers[0].highlights;
+    const created = await api.create({
+      bookmarkId: bookmark.id,
+      startOffset: 0,
+      endOffset: 8,
+      text: "PDF text",
+      note: null,
+      pdfAnchor,
+    });
+    expect(
+      (await api.getForBookmark({ bookmarkId: bookmark.id })).highlights,
+    ).toContainEqual(created);
+    expect((await api.get({ highlightId: created.id })).pdfAnchor).toEqual(
+      pdfAnchor,
+    );
+  });
+
+  test<CustomTestContext>("accepts an explicit null anchor from a legacy client", async ({
+    apiCallers,
+  }) => {
+    const bookmark = await apiCallers[0].bookmarks.createBookmark({
+      type: BookmarkTypes.TEXT,
+      text: "Legacy text",
+    });
+    const highlight = await apiCallers[0].highlights.create({
+      bookmarkId: bookmark.id,
+      startOffset: 0,
+      endOffset: 6,
+      text: "Legacy",
+      note: null,
+      pdfAnchor: null,
+    });
+    expect(highlight.pdfAnchor).toBeNull();
   });
 
   test<CustomTestContext>("delete highlight", async ({ apiCallers }) => {
