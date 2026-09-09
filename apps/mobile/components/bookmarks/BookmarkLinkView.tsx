@@ -15,11 +15,13 @@ import { BookmarkLinkType } from "./BookmarkLinkTypeSelector";
 interface BookmarkLinkViewProps {
   bookmark: ZBookmark;
   bookmarkPreviewType: BookmarkLinkType;
+  highlightId?: string;
 }
 
 export default function BookmarkLinkView({
   bookmark,
   bookmarkPreviewType,
+  highlightId,
 }: BookmarkLinkViewProps) {
   if (bookmark.content.type !== BookmarkTypes.LINK) {
     throw new Error("Wrong content type rendered");
@@ -41,6 +43,8 @@ export default function BookmarkLinkView({
     case "archive":
       return <BookmarkLinkArchivePreview bookmark={bookmark} />;
     case "pdf":
-      return <BookmarkLinkPdfPreview bookmark={bookmark} />;
+      return (
+        <BookmarkLinkPdfPreview bookmark={bookmark} highlightId={highlightId} />
+      );
   }
 }

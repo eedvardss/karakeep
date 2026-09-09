@@ -38,8 +38,8 @@ export function getPdfSelection(
 
   const rects: PdfRect[] = [];
   const pageTexts: string[] = [];
-  for (const page of container.querySelectorAll<HTMLElement>(
-    "[data-pdf-page]",
+  for (const page of Array.from(
+    container.querySelectorAll<HTMLElement>("[data-pdf-page]"),
   )) {
     const layer = page.querySelector("[data-pdf-text-layer]");
     if (!layer || !range.intersectsNode(layer)) continue;
@@ -63,7 +63,7 @@ export function getPdfSelection(
       if (node.parentElement?.nextElementSibling?.tagName === "BR") {
         pageText += "\n";
       }
-      for (const rect of fragment.getClientRects()) {
+      for (const rect of Array.from(fragment.getClientRects())) {
         const normalized = normalizePdfRect(rect, pageBounds, pageNumber);
         if (normalized) rects.push(normalized);
       }

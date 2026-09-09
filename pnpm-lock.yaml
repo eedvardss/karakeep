@@ -460,6 +460,9 @@ importers:
       nativewind:
         specifier: ^4.2.6
         version: 4.2.6(8a342e73ea8fd54871af5edb882e92f6)
+      pdfjs-dist:
+        specifier: ^4.2.67
+        version: 4.10.38
       react:
         specifier: 19.2.3
         version: 19.2.3
@@ -1483,12 +1486,18 @@ importers:
       lucide-react:
         specifier: ^0.501.0
         version: 0.501.0(react@19.2.3)
+      pdfjs-dist:
+        specifier: ^4.2.67
+        version: 4.10.38
       react:
         specifier: 19.2.3
         version: 19.2.3
       react-dom:
         specifier: 19.2.3
         version: 19.2.3(react@19.2.3)
+      react-intersection-observer:
+        specifier: ^9.13.1
+        version: 9.13.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       react-native:
         specifier: 0.79.5
         version: 0.79.5(@babel/core@7.29.7)(@types/react@19.2.15)(react@19.2.3)

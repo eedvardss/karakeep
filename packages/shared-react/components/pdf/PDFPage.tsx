@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils";
 import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
 import { useInView } from "react-intersection-observer";
 
-import { HIGHLIGHT_COLOR_MAP } from "@karakeep/shared-react/components/highlights";
-import type { ZHighlight } from "@karakeep/shared/types/highlights";
+import { HIGHLIGHT_COLOR_MAP } from "../highlights";
+import type { PdfHighlight } from "./types";
 
 import styles from "./PDFViewer.module.css";
 
@@ -26,9 +26,9 @@ export default function PDFPage({
   pageNumber: number;
   width: number;
   initialAspectRatio: number;
-  highlights: ZHighlight[];
+  highlights: PdfHighlight[];
   readOnly: boolean;
-  onEditHighlight: (highlight: ZHighlight, bounds: DOMRect) => void;
+  onEditHighlight: (highlight: PdfHighlight, bounds: DOMRect) => void;
 }) {
   const { ref, inView } = useInView({ rootMargin: "800px" });
   const [page, setPage] = useState<PDFPageProxy | null>(null);

@@ -10,7 +10,7 @@ import {
   containsPdfPoint,
   getPdfSelection,
   normalizePdfRect,
-} from "./pdfHighlights";
+} from "@karakeep/shared-react/components/pdf/pdfHighlights";
 
 afterEach(() => {
   cleanup();

@@ -9,10 +9,12 @@ import { BookmarkTypes, ZBookmark } from "@karakeep/shared/types/bookmarks";
 
 interface BookmarkAssetViewProps {
   bookmark: ZBookmark;
+  highlightId?: string;
 }
 
 export default function BookmarkAssetView({
   bookmark,
+  highlightId,
 }: BookmarkAssetViewProps) {
   const [imageZoom, setImageZoom] = useState(false);
 
@@ -27,6 +29,9 @@ export default function BookmarkAssetView({
     return (
       <View className="flex flex-1">
         <PDFViewer
+          bookmarkId={bookmark.id}
+          assetId={bookmark.content.assetId}
+          highlightId={highlightId}
           source={assetSource.uri ?? ""}
           headers={assetSource.headers}
         />

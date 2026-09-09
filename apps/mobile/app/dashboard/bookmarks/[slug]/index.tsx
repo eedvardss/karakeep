@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Pressable, View } from "react-native";
 import { useKeepAwake } from "expo-keep-awake";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -32,7 +32,8 @@ function KeepScreenOn() {
 
 export default function BookmarkView() {
   const router = useRouter();
-  const { slug } = useLocalSearchParams();
+  const { slug, section, highlight } = useLocalSearchParams();
+  const highlightId = typeof highlight === "string" ? highlight : undefined;
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
   const { settings } = useAppSettings();
@@ -40,10 +41,24 @@ export default function BookmarkView() {
   const api = useTRPC();
 
   const [bookmarkLinkType, setBookmarkLinkType] = useState<BookmarkLinkType>(
-    settings.defaultBookmarkView === "externalBrowser"
-      ? "browser"
-      : settings.defaultBookmarkView,
+    section === "pdf"
+      ? "pdf"
+      : settings.defaultBookmarkView === "externalBrowser"
+        ? "browser"
+        : settings.defaultBookmarkView,
   );
+
+  useEffect(() => {
+    // A PDF highlight's Source opens the PDF even when the preferred link view
+    // is the article/browser. The selector remains usable after navigation.
+    setBookmarkLinkType(
+      section === "pdf"
+        ? "pdf"
+        : settings.defaultBookmarkView === "externalBrowser"
+          ? "browser"
+          : settings.defaultBookmarkView,
+    );
+  }, [slug, section, highlightId, settings.defaultBookmarkView]);
 
   if (typeof slug !== "string") {
     throw new Error("Unexpected param type");
@@ -93,6 +108,7 @@ export default function BookmarkView() {
         <BookmarkLinkView
           bookmark={displayedBookmark}
           bookmarkPreviewType={displayedBookmarkLinkType}
+          highlightId={highlightId}
         />
       );
       break;
@@ -102,7 +118,12 @@ export default function BookmarkView() {
       break;
     case BookmarkTypes.ASSET:
       title = displayedBookmark.title ?? displayedBookmark.content.fileName;
-      comp = <BookmarkAssetView bookmark={displayedBookmark} />;
+      comp = (
+        <BookmarkAssetView
+          bookmark={displayedBookmark}
+          highlightId={highlightId}
+        />
+      );
       break;
   }
   return (

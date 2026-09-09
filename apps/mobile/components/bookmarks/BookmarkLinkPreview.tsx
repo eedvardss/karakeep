@@ -80,7 +80,13 @@ export function BookmarkLinkBrowserPreview({
   );
 }
 
-export function BookmarkLinkPdfPreview({ bookmark }: { bookmark: ZBookmark }) {
+export function BookmarkLinkPdfPreview({
+  bookmark,
+  highlightId,
+}: {
+  bookmark: ZBookmark;
+  highlightId?: string;
+}) {
   if (bookmark.content.type !== BookmarkTypes.LINK) {
     throw new Error("Wrong content type rendered");
   }
@@ -99,7 +105,13 @@ export function BookmarkLinkPdfPreview({ bookmark }: { bookmark: ZBookmark }) {
 
   return (
     <View className="flex flex-1">
-      <PDFViewer source={assetSource.uri ?? ""} headers={assetSource.headers} />
+      <PDFViewer
+        bookmarkId={bookmark.id}
+        assetId={asset.id}
+        highlightId={highlightId}
+        source={assetSource.uri ?? ""}
+        headers={assetSource.headers}
+      />
     </View>
   );
 }
