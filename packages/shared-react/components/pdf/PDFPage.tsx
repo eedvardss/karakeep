@@ -11,6 +11,15 @@ import styles from "./PDFViewer.module.css";
 
 export type PdfLibrary = typeof import("pdfjs-dist");
 
+function selectionIntersects(container: HTMLElement | null) {
+  const selection = container?.ownerDocument.getSelection();
+  if (!container || !selection || selection.isCollapsed) return false;
+  for (let index = 0; index < selection.rangeCount; index++) {
+    if (selection.getRangeAt(index).intersectsNode(container)) return true;
+  }
+  return false;
+}
+
 export default function PDFPage({
   pdf,
   library,
@@ -34,8 +43,11 @@ export default function PDFPage({
   const [page, setPage] = useState<PDFPageProxy | null>(null);
   const [error, setError] = useState(false);
   const [textReady, setTextReady] = useState(false);
+  const [, updateSelection] = useState(0);
   const canvasContainer = useRef<HTMLDivElement>(null);
   const textContainer = useRef<HTMLDivElement>(null);
+  // Read the live range when visibility changes: selectionchange may still be queued.
+  const retainText = inView || selectionIntersects(textContainer.current);
   const originalViewport = page?.getViewport({ scale: 1 });
   const scale = originalViewport ? width / originalViewport.width : 1;
   const height = originalViewport
@@ -48,6 +60,7 @@ export default function PDFPage({
     pdf.getPage(pageNumber).then(
       (loaded) => {
         if (!cancelled) setPage(loaded);
+        else loaded.cleanup();
       },
       () => {
         if (!cancelled) setError(true);
@@ -61,7 +74,7 @@ export default function PDFPage({
   useEffect(() => {
     if (!page || !inView || !canvasContainer.current) return;
     const viewport = page.getViewport({ scale });
-    // Release offscreen bitmaps; keep text available for selections across pages.
+    // Bitmaps can always be released offscreen, even while text is selected.
     const canvas = document.createElement("canvas");
     const pixelScale = Math.min(
       window.devicePixelRatio || 1,
@@ -76,6 +89,9 @@ export default function PDFPage({
     const context = canvas.getContext("2d");
     if (!context) {
       setError(true);
+      canvas.width = 0;
+      canvas.height = 0;
+      canvas.remove();
       return;
     }
     const task = page.render({
@@ -97,9 +113,18 @@ export default function PDFPage({
   }, [page, scale, inView]);
 
   useEffect(() => {
+    if (inView || !retainText) return;
+    const ownerDocument = textContainer.current?.ownerDocument;
+    const onSelectionChange = () => updateSelection((version) => version + 1);
+    ownerDocument?.addEventListener("selectionchange", onSelectionChange);
+    return () =>
+      ownerDocument?.removeEventListener("selectionchange", onSelectionChange);
+  }, [inView, retainText]);
+
+  useEffect(() => {
     const container = textContainer.current;
-    if (!page || !container) return;
     setTextReady(false);
+    if (!page || !container || !retainText) return;
     container.replaceChildren();
     const textLayer = new library.TextLayer({
       textContentSource: page.streamTextContent(),
@@ -120,7 +145,20 @@ export default function PDFPage({
       textLayer.cancel();
       container.replaceChildren();
     };
-  }, [page, scale, library]);
+  }, [page, scale, library, retainText]);
+
+  useEffect(() => {
+    // PDF.js caches the proxy; release its render data without losing page geometry.
+    // cleanup() defers safely while a canceled render is still settling.
+    if (!inView) page?.cleanup();
+  }, [page, inView]);
+
+  useEffect(
+    () => () => {
+      page?.cleanup();
+    },
+    [page],
+  );
 
   return (
     <div

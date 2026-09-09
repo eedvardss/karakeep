@@ -14,7 +14,12 @@ import {
 import { useTRPC } from "@karakeep/shared-react/trpc";
 
 import PDFHighlighterDom from "./PDFHighlighterDom";
-import { finishPdfDownload } from "./pdfDownload";
+import {
+  finishPdfDownload,
+  getPdfHighlightingBlockReason,
+  PDF_HIGHLIGHTING_MAX_BYTES,
+} from "./pdfDownload";
+import type { PdfHighlightingBlockReason } from "./pdfDownload";
 
 interface PDFViewerProps {
   bookmarkId: string;
@@ -42,7 +47,10 @@ function PDFViewerContent({
   headers,
 }: PDFViewerProps) {
   const api = useTRPC();
-  const [localPath, setLocalPath] = useState<string | null>(null);
+  const [downloadedPdf, setDownloadedPdf] = useState<{
+    path: string;
+    highlightingBlockReason: PdfHighlightingBlockReason | null;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [originalReader, setOriginalReader] = useState(false);
   const [originalError, setOriginalError] = useState<string | null>(null);
@@ -59,9 +67,10 @@ function PDFViewerContent({
 
   useEffect(() => {
     let cancelled = false;
-    setLocalPath(null);
+    setDownloadedPdf(null);
     setError(null);
     setOriginalReader(false);
+    setOriginalError(null);
     const path = `${ReactNativeBlobUtil.fs.dirs.CacheDir}/karakeep-pdf-${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`;
     const unlink = () =>
       ReactNativeBlobUtil.fs.unlink(path).catch(() => undefined);
@@ -71,8 +80,13 @@ function PDFViewerContent({
       JSON.parse(requestHeaders),
     );
     finishPdfDownload(task, unlink, () => cancelled).then(
-      (downloaded) => {
-        if (!cancelled) setLocalPath(downloaded);
+      async (downloaded) => {
+        const highlightingBlockReason = await getPdfHighlightingBlockReason(
+          downloaded,
+          (file) => ReactNativeBlobUtil.fs.stat(file),
+        );
+        if (!cancelled)
+          setDownloadedPdf({ path: downloaded, highlightingBlockReason });
       },
       (reason: unknown) => {
         if (!cancelled)
@@ -100,7 +114,7 @@ function PDFViewerContent({
         <Text style={styles.errorText}>{error}</Text>
       </View>
     );
-  if (!localPath)
+  if (!downloadedPdf)
     return (
       <View style={containerStyle}>
         <View style={styles.loadingContainer}>
@@ -110,17 +124,27 @@ function PDFViewerContent({
       </View>
     );
 
+  const { path: localPath, highlightingBlockReason } = downloadedPdf;
+
   return (
     <View style={containerStyle}>
-      {originalReader ? (
+      {originalReader || highlightingBlockReason ? (
         <>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setOriginalReader(false)}
-            className="items-center border-b border-border p-3"
-          >
-            <Text>Back to highlights</Text>
-          </Pressable>
+          {highlightingBlockReason ? (
+            <Text style={styles.noticeText}>
+              {highlightingBlockReason === "size-limit"
+                ? `Highlighting is limited to PDFs up to ${PDF_HIGHLIGHTING_MAX_BYTES / 1_000_000} MB in the mobile app. You can still read this PDF below.`
+                : "This PDF's size could not be checked, so highlighting is unavailable. You can still read it below."}
+            </Text>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setOriginalReader(false)}
+              className="items-center border-b border-border p-3"
+            >
+              <Text>Back to highlights</Text>
+            </Pressable>
+          )}
           {originalError ? (
             <Text style={styles.errorText}>{originalError}</Text>
           ) : (
@@ -189,5 +213,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingText: { marginTop: 12, fontSize: 16 },
+  noticeText: { fontSize: 14, padding: 16 },
   errorText: { fontSize: 16, textAlign: "center", padding: 20 },
 });

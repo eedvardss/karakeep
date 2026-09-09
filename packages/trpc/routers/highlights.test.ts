@@ -20,11 +20,12 @@ const pdfAnchor = {
 async function createPdfBookmark(
   { apiCallers, db }: Pick<CustomTestContext, "apiCallers" | "db">,
   type: "asset" | "link" = "asset",
+  assetId = pdfAnchor.assetId,
 ) {
   const caller = apiCallers[0];
   const user = await caller.users.whoami();
   await db.insert(assets).values({
-    id: pdfAnchor.assetId,
+    id: assetId,
     assetType: AssetTypes.USER_UPLOADED,
     contentType: "application/pdf",
     userId: user.id,
@@ -33,7 +34,7 @@ async function createPdfBookmark(
     return caller.bookmarks.createBookmark({
       type: BookmarkTypes.ASSET,
       assetType: "pdf",
-      assetId: pdfAnchor.assetId,
+      assetId,
       fileName: "highlight-fixture.pdf",
     });
   }
@@ -43,7 +44,7 @@ async function createPdfBookmark(
   });
   await caller.assets.attachAsset({
     bookmarkId: bookmark.id,
-    asset: { id: pdfAnchor.assetId, assetType: "pdf" },
+    asset: { id: assetId, assetType: "pdf" },
   });
   return bookmark;
 }
@@ -179,6 +180,121 @@ describe("Highlight Routes", () => {
     expect((await api.get({ highlightId: created.id })).pdfAnchor).toEqual(
       pdfAnchor,
     );
+  });
+
+  for (const invalidAsset of [
+    "missing",
+    "unattached",
+    "another bookmark",
+    "screenshot",
+    "image bookmark",
+    "non-primary PDF",
+    "text bookmark",
+  ] as const) {
+    test<CustomTestContext>(`rejects an anchor for ${invalidAsset} without storing a highlight`, async ({
+      apiCallers,
+      db,
+    }) => {
+      const caller = apiCallers[0];
+      const user = await caller.users.whoami();
+      let bookmarkId: string;
+      let assetId = pdfAnchor.assetId;
+
+      if (invalidAsset === "another bookmark") {
+        await createPdfBookmark({ apiCallers, db });
+        bookmarkId = (
+          await createPdfBookmark({ apiCallers, db }, "asset", "other-pdf")
+        ).id;
+      } else if (invalidAsset === "non-primary PDF") {
+        bookmarkId = (await createPdfBookmark({ apiCallers, db })).id;
+        assetId = "secondary-pdf";
+        await db.insert(assets).values({
+          id: assetId,
+          assetType: AssetTypes.USER_UPLOADED,
+          contentType: "application/pdf",
+          userId: user.id,
+        });
+        await caller.assets.attachAsset({
+          bookmarkId,
+          asset: { id: assetId, assetType: "pdf" },
+        });
+      } else {
+        if (invalidAsset !== "missing") {
+          await db.insert(assets).values({
+            id: assetId,
+            assetType: AssetTypes.USER_UPLOADED,
+            contentType:
+              invalidAsset === "screenshot" || invalidAsset === "image bookmark"
+                ? "image/png"
+                : "application/pdf",
+            userId: user.id,
+          });
+        }
+        const bookmark = await caller.bookmarks.createBookmark(
+          invalidAsset === "image bookmark"
+            ? { type: BookmarkTypes.ASSET, assetType: "image", assetId }
+            : invalidAsset === "text bookmark"
+              ? { type: BookmarkTypes.TEXT, text: "Plain text bookmark" }
+              : { type: BookmarkTypes.LINK, url: "https://example.com/target" },
+        );
+        bookmarkId = bookmark.id;
+        if (invalidAsset === "screenshot" || invalidAsset === "text bookmark") {
+          await caller.assets.attachAsset({
+            bookmarkId,
+            asset: {
+              id: assetId,
+              assetType: invalidAsset === "screenshot" ? "screenshot" : "pdf",
+            },
+          });
+        }
+      }
+
+      await expect(
+        caller.highlights.create({
+          bookmarkId,
+          startOffset: 0,
+          endOffset: 8,
+          text: "PDF text",
+          note: null,
+          pdfAnchor: { ...pdfAnchor, assetId },
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "PDF anchor must reference a PDF attached to this bookmark",
+      });
+      expect(await db.query.highlights.findMany()).toEqual([]);
+    });
+  }
+
+  test<CustomTestContext>("accepts a linked PDF classified by its attachment without MIME metadata", async ({
+    apiCallers,
+    db,
+  }) => {
+    const caller = apiCallers[0];
+    const user = await caller.users.whoami();
+    const bookmark = await caller.bookmarks.createBookmark({
+      type: BookmarkTypes.LINK,
+      url: "https://example.com/legacy-pdf",
+    });
+    await db.insert(assets).values({
+      id: pdfAnchor.assetId,
+      assetType: AssetTypes.LINK_PDF,
+      bookmarkId: bookmark.id,
+      userId: user.id,
+      contentType: null,
+    });
+    const created = await caller.highlights.create({
+      bookmarkId: bookmark.id,
+      startOffset: 0,
+      endOffset: 8,
+      text: "PDF text",
+      note: null,
+      pdfAnchor,
+    });
+    expect(created.pdfAnchor).toEqual(pdfAnchor);
+    expect(
+      (await caller.highlights.get({ highlightId: created.id })).pdfAnchor,
+    ).toEqual(pdfAnchor);
   });
 
   test<CustomTestContext>("accepts an explicit null anchor from a legacy client", async ({

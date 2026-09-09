@@ -2,7 +2,14 @@ import { and, desc, eq, like, lt, lte, or } from "drizzle-orm";
 import { z } from "zod";
 
 import type { DB } from "@karakeep/db";
-import { highlights } from "@karakeep/db/schema";
+import {
+  assets,
+  AssetTypes,
+  bookmarkAssets,
+  bookmarks,
+  highlights,
+} from "@karakeep/db/schema";
+import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
 import {
   zHighlightSchema,
   zNewHighlightSchema,
@@ -20,6 +27,41 @@ export class HighlightsRepo {
       where: eq(highlights.id, id),
     });
     return highlight ?? null;
+  }
+
+  async hasPdfAsset(
+    userId: string,
+    bookmarkId: string,
+    assetId: string,
+  ): Promise<boolean> {
+    const [asset] = await this.db
+      .select({ id: assets.id })
+      .from(assets)
+      .innerJoin(bookmarks, eq(assets.bookmarkId, bookmarks.id))
+      .leftJoin(bookmarkAssets, eq(bookmarkAssets.id, bookmarks.id))
+      .where(
+        and(
+          eq(assets.id, assetId),
+          eq(bookmarks.id, bookmarkId),
+          eq(bookmarks.userId, userId),
+          eq(assets.userId, userId),
+          // Match the PDF content used by the viewers, including older assets
+          // whose MIME metadata is absent.
+          or(
+            and(
+              eq(bookmarks.type, BookmarkTypes.LINK),
+              eq(assets.assetType, AssetTypes.LINK_PDF),
+            ),
+            and(
+              eq(bookmarks.type, BookmarkTypes.ASSET),
+              eq(bookmarkAssets.assetType, "pdf"),
+              eq(bookmarkAssets.assetId, assetId),
+            ),
+          ),
+        ),
+      )
+      .limit(1);
+    return !!asset;
   }
 
   async create(

@@ -37,7 +37,21 @@ export class HighlightsService {
     actor: Actor,
     input: z.infer<typeof zNewHighlightSchema>,
   ): Promise<Highlight> {
-    return await this.repo.create(actorUserId(actor), input);
+    const userId = actorUserId(actor);
+    if (
+      input.pdfAnchor &&
+      !(await this.repo.hasPdfAsset(
+        userId,
+        input.bookmarkId,
+        input.pdfAnchor.assetId,
+      ))
+    ) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "PDF anchor must reference a PDF attached to this bookmark",
+      });
+    }
+    return await this.repo.create(userId, input);
   }
 
   async getForBookmark(bookmarkId: string): Promise<Highlight[]> {

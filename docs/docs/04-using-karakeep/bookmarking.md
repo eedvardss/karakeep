@@ -38,7 +38,7 @@ For PDFs, open the **PDF** preview and select text, including text across pages.
 
 On touchscreens, including the Android app, hold on the text and adjust the selection handles, then tap **Highlight selection** to open the color and note editor. Uploaded PDFs and bookmarked PDF links use the same highlighting controls.
 
-PDF highlighting needs a selectable text layer; image-only scans cannot be highlighted this way. Highlights are stored in Karakeep and do not change the downloaded PDF. In the Android app, **Open PDF** switches to the original PDF reader if the highlighting view has trouble with a document; **Back to highlights** returns to the highlighting view. Large documents may take longer to load on phones.
+PDF highlighting needs a selectable text layer; image-only scans cannot be highlighted this way. Highlights are stored in Karakeep and do not change the downloaded PDF. In the Android app, **Open PDF** switches to the original PDF reader if the highlighting view has trouble with a document; **Back to highlights** returns to the highlighting view. PDFs larger than 10 MB, or whose size cannot be checked, open directly in the original Android reader with highlighting unavailable. Smaller documents can still take longer to load on phones.
 
 ## Attachments
 

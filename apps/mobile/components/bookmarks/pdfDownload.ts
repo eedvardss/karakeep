@@ -1,3 +1,24 @@
+// A conservative transfer budget for the base64 DOM bridge, not a guarantee
+// about a PDF's decoded memory use or every device's available memory.
+export const PDF_HIGHLIGHTING_MAX_BYTES = 10_000_000;
+
+export type PdfHighlightingBlockReason = "size-limit" | "unknown-size";
+
+/** Check the completed cache file before mounting a DOM reader that reads it. */
+export async function getPdfHighlightingBlockReason(
+  path: string,
+  stat: (path: string) => Promise<{ size: number }>,
+): Promise<PdfHighlightingBlockReason | null> {
+  try {
+    const { size } = await stat(path);
+    if (!Number.isSafeInteger(size) || size < 0) return "unknown-size";
+    return size > PDF_HIGHLIGHTING_MAX_BYTES ? "size-limit" : null;
+  } catch {
+    // The original native reader can still try the file without a JS copy.
+    return "unknown-size";
+  }
+}
+
 /** Validate the native HTTP response before exposing its temporary file. */
 export async function finishPdfDownload(
   download: Promise<{ info: () => { status: number }; path: () => string }>,
