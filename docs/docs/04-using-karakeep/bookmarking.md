@@ -34,6 +34,10 @@ Everything in Karakeep starts as a bookmark. Here’s how the different types wo
 - Save quotes, summaries, or TODOs while reading.
 - Highlights show up in the bookmark detail view/reader and are searchable, so you can jump straight to the key ideas.
 
+For PDFs, open the **PDF** preview and select text, including text across pages. Choose a color, optionally add a note, and save. Saved highlights stay aligned when you zoom or reopen the PDF. Select a highlight to edit or delete it, or use its **Source** link in Highlights to return to the PDF.
+
+PDF highlighting needs a selectable text layer; image-only scans cannot be highlighted this way. Highlights are stored in Karakeep and do not change the downloaded PDF.
+
 ## Attachments
 
 - Store extra context alongside a bookmark: screenshots, page captures, videos, and files you upload.

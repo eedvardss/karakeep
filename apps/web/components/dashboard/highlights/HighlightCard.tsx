@@ -1,7 +1,9 @@
+import { usePathname, useRouter } from "next/navigation";
 import { ActionButton } from "@/components/ui/action-button";
 import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
+import { parseAsString, useQueryStates } from "nuqs";
 
 import { useDeleteHighlight } from "@karakeep/shared-react/hooks/highlights";
 import { ZHighlight } from "@karakeep/shared/types/highlights";
@@ -19,6 +21,12 @@ export default function HighlightCard({
   className?: string;
   readOnly: boolean;
 }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [, setPreviewQuery] = useQueryStates({
+    section: parseAsString,
+    highlight: parseAsString,
+  });
   const { mutate: deleteHighlight, isPending: isDeleting } = useDeleteHighlight(
     {
       onSuccess: () => {
@@ -36,12 +44,27 @@ export default function HighlightCard({
   );
 
   const onBookmarkClick = () => {
-    document
-      .querySelector(`[data-highlight-id="${highlight.id}"]`)
-      ?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
+    if (highlight.pdfAnchor) {
+      const query = { section: "pdf", highlight: highlight.id };
+      if (pathname.startsWith("/reader/")) {
+        router.push(
+          `/dashboard/preview/${highlight.bookmarkId}?${new URLSearchParams(query)}`,
+        );
+        return;
+      }
+      void setPreviewQuery(query);
+    }
+    const target = highlight.pdfAnchor
+      ? Array.from(
+          document.querySelectorAll(
+            `[data-pdf-highlight-id="${highlight.id}"]`,
+          ),
+        ).find((element) => element.getClientRects().length > 0)
+      : document.querySelector(`[data-highlight-id="${highlight.id}"]`);
+    target?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
   };
 
   const Wrapper = ({

@@ -1,0 +1,6 @@
+/* PDF.js appends its font measurement canvas to document.body. */
+canvas.hiddenCanvasElement {
+  display: none;
+  width: 0;
+  height: 0;
+}

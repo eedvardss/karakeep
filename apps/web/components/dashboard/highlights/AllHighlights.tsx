@@ -33,7 +33,12 @@ function Highlight({ highlight }: { highlight: ZHighlight }) {
         <span title={localCreatedAt}>{fromNow}</span>
         <Dot />
         <Link
-          href={`/dashboard/preview/${highlight.bookmarkId}`}
+          href={{
+            pathname: `/dashboard/preview/${highlight.bookmarkId}`,
+            query: highlight.pdfAnchor
+              ? { section: "pdf", highlight: highlight.id }
+              : undefined,
+          }}
           className="flex items-center gap-0.5"
         >
           <LinkIcon className="size-3 italic" />
