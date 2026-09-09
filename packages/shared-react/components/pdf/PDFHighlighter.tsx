@@ -304,50 +304,7 @@ export default function PDFHighlighter({
       className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden"
     >
       <div className="flex shrink-0 select-none items-center justify-center gap-2 border-b p-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Zoom out"
-          disabled={zoom <= 0.5}
-          onClick={() => {
-            closeForm();
-            setZoom((value) => Math.max(0.5, value - 0.25));
-          }}
-        >
-          <ZoomOut className="size-4" />
-        </Button>
-        <span className="min-w-12 text-center text-sm" aria-live="polite">
-          {Math.round(zoom * 100)}%
-        </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Zoom in"
-          disabled={zoom >= 3}
-          onClick={() => {
-            closeForm();
-            setZoom((value) => Math.min(3, value + 0.25));
-          }}
-        >
-          <ZoomIn className="size-4" />
-        </Button>
-        {originalUrl ? (
-          <a
-            href={originalUrl}
-            target="_blank"
-            rel="noreferrer"
-            className={buttonVariants({ variant: "ghost", size: "sm" })}
-          >
-            Open PDF <ExternalLink className="ml-2 size-4" />
-          </a>
-        ) : (
-          <Button variant="ghost" size="sm" onClick={onOpenOriginal}>
-            Open PDF <ExternalLink className="ml-2 size-4" />
-          </Button>
-        )}
-      </div>
-      {isMobile && touchSelection && !position && !readOnly && (
-        <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 select-none">
+        {isMobile && touchSelection && !position && !readOnly ? (
           <Button
             disabled={isSaving}
             onPointerDown={(event) => {
@@ -358,8 +315,52 @@ export default function PDFHighlighter({
           >
             Highlight selection
           </Button>
-        </div>
-      )}
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Zoom out"
+              disabled={zoom <= 0.5}
+              onClick={() => {
+                closeForm();
+                setZoom((value) => Math.max(0.5, value - 0.25));
+              }}
+            >
+              <ZoomOut className="size-4" />
+            </Button>
+            <span className="min-w-12 text-center text-sm" aria-live="polite">
+              {Math.round(zoom * 100)}%
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Zoom in"
+              disabled={zoom >= 3}
+              onClick={() => {
+                closeForm();
+                setZoom((value) => Math.min(3, value + 0.25));
+              }}
+            >
+              <ZoomIn className="size-4" />
+            </Button>
+            {originalUrl ? (
+              <a
+                href={originalUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={buttonVariants({ variant: "ghost", size: "sm" })}
+              >
+                Open PDF <ExternalLink className="ml-2 size-4" />
+              </a>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={onOpenOriginal}>
+                Open PDF <ExternalLink className="ml-2 size-4" />
+              </Button>
+            )}
+          </>
+        )}
+      </div>
       {saveError && (
         <p role="alert" className="p-2 text-center text-sm text-destructive">
           Could not save the highlight. Please try again.
