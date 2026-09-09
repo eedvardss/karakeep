@@ -47,6 +47,7 @@ COPY tooling/oxlint/package.json ./tooling/oxlint/
 COPY tooling/prettier/package.json ./tooling/prettier/
 COPY tooling/tailwind/package.json ./tooling/tailwind/
 COPY tooling/typescript/package.json ./tooling/typescript/
+COPY tools/compare-models/package.json ./tools/compare-models/
 COPY ./patches ./patches
 
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -57,12 +58,12 @@ COPY . .
 
 # Build the db migration script
 RUN cd packages/db && \
-    pnpm exec ncc build migrate.ts -o /db_migrations && \
+    pnpm --config.verify-deps-before-run=error exec ncc build migrate.ts -o /db_migrations && \
     cp -R drizzle /db_migrations
 
 
 # Compile the web app
-RUN (cd apps/web && pnpm exec next build --experimental-build-mode compile)
+RUN (cd apps/web && pnpm --config.verify-deps-before-run=error exec next build --experimental-build-mode compile)
 
 # Build the worker code
 RUN (cd apps/workers && pnpm --config.verify-deps-before-run=false build)
